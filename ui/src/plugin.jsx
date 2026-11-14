@@ -16,16 +16,25 @@
 // instance" — external: ['react','react-dom'] in vite.config.js).
 //
 // This ports aw-workspace-ui's src/components/AgentsNav.jsx (the "Agents" nav
-// menu: launch/resume a claude/codex/copilot/cursor/antigravity session, or a plain
-// terminal) into this app, per the 2026-08-03 decision to decouple it out of
-// core — see docs/knowledge_base/docs/architecture/monolith-migration-roadmap.md.
+// menu: launch/resume a claude/codex/copilot/cursor/antigravity session) into
+// this app, per the 2026-08-03 decision to decouple it out of core — see
+// docs/knowledge_base/docs/architecture/monolith-migration-roadmap.md.
 // The plain-terminal PTY shell (TerminalWindow chrome, /ws/terminal/*) stays
 // core: this component only owns the AGENT-CLI-specific menu/session-picker,
-// driving terminal creation/toggling through the same callback props
+// driving agent-session creation/toggling through the same callback props
 // aw-workspace-ui's App.jsx already threads to this slot (onCreateAgent,
-// onCreateTerminal, onToggleAgent, onToggleTerminal, onCloseTerminal) — no new
-// host capability was needed since AppSlot already forwards arbitrary `props`
-// to whatever fills the slot.
+// onToggleAgent) — no new host capability was needed since AppSlot already
+// forwards arbitrary `props` to whatever fills the slot.
+//
+// A PLAIN TERMINAL IS NO LONGER LAUNCHED FROM HERE. That row moved to its own
+// app, aw-app-terminal, which contributes it to `core.nav.workspace` — this
+// app declares a required `dependencies.apps` entry on it (aw-app.json), so
+// installing this one still gets you a terminal launcher, just not under
+// "Agents". A shell is not an agent-CLI session: having it here also meant the
+// Agents badge counted terminals. App.jsx still threads onCreateTerminal /
+// onToggleTerminal / onCloseTerminal / terminals into this slot and that is
+// fine — those props are core's contract with the slot, not ours, and other
+// fillers may use them; this component simply no longer reads them.
 
 import { createClient } from './client.js';
 
@@ -95,12 +104,6 @@ export function register(host) {
         <path d="M2.5 12H12v9.5c-.7-5.3-4.2-8.8-9.5-9.5Z" fill="#EA4335" />
       </svg>
     ),
-    terminal: () => (
-      <svg className="w-3 h-3 shrink-0 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <polyline points="4 17 10 11 4 5" />
-        <line x1="12" y1="19" x2="20" y2="19" />
-      </svg>
-    ),
   };
 
   function AgentIcon({ iconName, color }) {
@@ -118,14 +121,11 @@ export function register(host) {
 
   function LauncherRow({
     launcher,
-    terminals,
     runningAgentSessionMap,
     liveAgentSessions,
     onLaunch,
     onResume,
     onOpenRunningAgentSession,
-    onOpenRunningTerminal,
-    onCloseRunningTerminal,
     onFlyoutEnter,
     onFlyoutLeave,
   }) {
@@ -141,9 +141,7 @@ export function register(host) {
     const closeTimer = useRef(null);
     const reportedOpenRef = useRef(false);
 
-    const isTerminalLauncher = launcher.key === 'terminal';
-    const hasSessions = AGENT_TYPES_WITH_SESSIONS.has(launcher.key);
-    const supportsFlyout = isTerminalLauncher || hasSessions;
+    const supportsFlyout = AGENT_TYPES_WITH_SESSIONS.has(launcher.key);
 
     const flyoutOpenRef = useRef(false);
 
@@ -196,7 +194,7 @@ export function register(host) {
       // was monolith-only PromptDetector plumbing); a plain poll-on-open keeps
       // this simple and correct enough for a picker menu. Only the first
       // page loads here; scrolling (or "Load more") pages in the rest.
-      if (!isTerminalLauncher && !loading) {
+      if (!loading) {
         setLoading(true);
         setError(null);
         client.listSessions(launcher.key, { limit: PAGE_SIZE })
@@ -208,7 +206,7 @@ export function register(host) {
           .catch((e) => setError(e.message || 'Failed to load'))
           .finally(() => setLoading(false));
       }
-    }, [supportsFlyout, cancelClose, reportOpen, isTerminalLauncher, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [supportsFlyout, cancelClose, reportOpen, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const loadMore = useCallback(() => {
       if (loadingMore || !hasMore || !sessions || sessions.length === 0) return;
@@ -228,16 +226,10 @@ export function register(host) {
     }, [loadingMore, hasMore, sessions, launcher.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const onSessionsScroll = useCallback((e) => {
-      if (isTerminalLauncher || !hasMore || loadingMore) return;
+      if (!hasMore || loadingMore) return;
       const el = e.currentTarget;
       if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) loadMore();
-    }, [isTerminalLauncher, hasMore, loadingMore, loadMore]);
-
-    const sortedTerminals = [...(terminals || [])].sort((a, b) => {
-      const aName = (a.name || '').toLowerCase();
-      const bName = (b.name || '').toLowerCase();
-      return aName.localeCompare(bName);
-    });
+    }, [hasMore, loadingMore, loadMore]);
 
     // Live terminals whose agent_session_id isn't discovered on disk yet
     // (e.g. right after launch, before the CLI has written its session file).
@@ -308,165 +300,121 @@ export function register(host) {
                 closeFlyout();
                 onLaunch();
               }}
-              title={isTerminalLauncher ? 'New terminal' : 'New session'}
-              aria-label={isTerminalLauncher ? 'Start new terminal' : `Start new ${launcher.label} session`}
+              title="New session"
+              aria-label={`Start new ${launcher.label} session`}
               className="w-full text-left px-3 py-2 text-xs text-[var(--color-accent)] hover:bg-white/5 border-b border-[var(--color-border)] flex items-center gap-1.5"
             >
               <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-              <span className="font-medium">{isTerminalLauncher ? 'New Terminal' : 'New Session'}</span>
-              <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
-                {isTerminalLauncher ? (terminals?.length || 0) : total}
-              </span>
+              <span className="font-medium">New Session</span>
+              <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">{total}</span>
             </button>
 
-            {isTerminalLauncher ? (
-              <>
-                {!terminals || terminals.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-[var(--color-text-muted)]">No running terminals.</div>
-                ) : (
-                  sortedTerminals.map((t) => (
-                    <div
-                      key={t.id}
-                      className="group relative w-full hover:bg-white/5 transition-colors border-b border-[var(--color-border)] last:border-0"
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeFlyout();
-                          onOpenRunningTerminal(t.id);
-                        }}
-                        className="w-full text-left px-3 py-2 pr-9"
-                        title={`Open ${t.name}`}
-                      >
-                        <div className="text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                          <span className="truncate">{t.name}</span>
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCloseRunningTerminal(t.id);
-                        }}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger)]/20 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-opacity cursor-pointer"
-                        title="Close terminal"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                  ))
-                )}
-              </>
-            ) : (
-              <>
-                {loading && (
-                  <div className="px-3 py-3 text-xs text-[var(--color-text-muted)]">Loading…</div>
-                )}
-                {error && !loading && (
-                  <div className="px-3 py-3 text-xs text-[var(--color-danger)]">Failed to load: {error}</div>
-                )}
-                {!loading && !error && sessions && sessions.length === 0 && undetectedLive.length === 0 && (
-                  <div className="px-3 py-3 text-xs text-[var(--color-text-muted)]">No previous sessions for this project.</div>
-                )}
-                {undetectedLive.map((t) => (
-                  <div
-                    key={t.id}
-                    className="group relative w-full hover:bg-white/5 transition-colors border-b border-[var(--color-border)] last:border-0"
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeFlyout();
-                        onOpenRunningAgentSession(t.id);
-                      }}
-                      className="w-full text-left px-3 py-2 pr-9"
-                      title={`Open running session "${t.name}" (session ID not yet detected)`}
-                    >
-                      <div className="text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                        <span className="truncate">{t.name}</span>
-                      </div>
-                      <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">starting…</div>
-                    </button>
-                  </div>
-                ))}
-                {!loading && !error && sessions && sortedSessions.map((s) => {
-                  const idSlice = s.session_id ? `${s.session_id.slice(0, 8)}-${s.session_id.slice(9, 13)}…` : '';
-                  // A noise-only transcript (stripped to nothing by
-                  // _first_user_message) must never fall back to showing
-                  // the literal "[SYSTEM]" marker — UUID+timestamp instead.
-                  const display = s.name || idSlice || '(untitled)';
-                  let when = '';
-                  const tsSrc = s.updated_at
-                    ? new Date(s.updated_at * 1000)
-                    : (s.created_at ? new Date(s.created_at * 1000) : null);
-                  if (tsSrc && !isNaN(tsSrc)) {
-                    when = `${tsSrc.toLocaleDateString()} ${tsSrc.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                  }
-                  const sub = [idSlice, when].filter(Boolean).join(' · ');
-                  const runningTerminalId = runningAgentSessionMap[`${launcher.key}:${s.session_id}`];
-                  const hideSession = (e) => {
+            {loading && (
+              <div className="px-3 py-3 text-xs text-[var(--color-text-muted)]">Loading…</div>
+            )}
+            {error && !loading && (
+              <div className="px-3 py-3 text-xs text-[var(--color-danger)]">Failed to load: {error}</div>
+            )}
+            {!loading && !error && sessions && sessions.length === 0 && undetectedLive.length === 0 && (
+              <div className="px-3 py-3 text-xs text-[var(--color-text-muted)]">No previous sessions for this project.</div>
+            )}
+            {undetectedLive.map((t) => (
+              <div
+                key={t.id}
+                className="group relative w-full hover:bg-white/5 transition-colors border-b border-[var(--color-border)] last:border-0"
+              >
+                <button
+                  onClick={(e) => {
                     e.stopPropagation();
-                    // Optimistic local removal; no WS push in this app yet, so
-                    // the next flyout open is what re-syncs from the server.
-                    setSessions((prev) => (prev || []).filter((x) => x.session_id !== s.session_id));
-                    setTotal((prev) => Math.max(0, prev - 1));
-                    client.hideSession(launcher.key, s.session_id).catch(() => {});
-                  };
-                  return (
-                    <div
-                      key={s.session_id}
-                      className="group relative w-full hover:bg-white/5 transition-colors border-b border-[var(--color-border)] last:border-0"
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          closeFlyout();
-                          if (runningTerminalId) {
-                            onOpenRunningAgentSession(runningTerminalId);
-                          } else {
-                            onResume(launcher.key, s.session_id, display);
-                          }
-                        }}
-                        className="w-full text-left px-3 py-2 pr-9"
-                        title={`${runningTerminalId ? 'Open' : 'Resume'} "${display}" (${s.session_id})`}
-                      >
-                        <div className="text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2">
-                          {runningTerminalId && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                          )}
-                          <span className="truncate">{display}</span>
-                        </div>
-                        <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">{sub}</div>
-                      </button>
-                      <button
-                        onClick={hideSession}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger)]/20 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-opacity cursor-pointer"
-                        title="Hide from picker (transcript kept on disk)"
-                      >
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          <path d="M10 11v6M14 11v6" />
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                })}
-                {!loading && !error && hasMore && (
-                  // Terminal fallback row for when 50 rows don't overflow
-                  // the flyout's own scrollbar (no scroll event ever fires
-                  // then, so page 2 would otherwise be unreachable).
+                    closeFlyout();
+                    onOpenRunningAgentSession(t.id);
+                  }}
+                  className="w-full text-left px-3 py-2 pr-9"
+                  title={`Open running session "${t.name}" (session ID not yet detected)`}
+                >
+                  <div className="text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="truncate">{t.name}</span>
+                  </div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5">starting…</div>
+                </button>
+              </div>
+            ))}
+            {!loading && !error && sessions && sortedSessions.map((s) => {
+              const idSlice = s.session_id ? `${s.session_id.slice(0, 8)}-${s.session_id.slice(9, 13)}…` : '';
+              // A noise-only transcript (stripped to nothing by
+              // _first_user_message) must never fall back to showing
+              // the literal "[SYSTEM]" marker — UUID+timestamp instead.
+              const display = s.name || idSlice || '(untitled)';
+              let when = '';
+              const tsSrc = s.updated_at
+                ? new Date(s.updated_at * 1000)
+                : (s.created_at ? new Date(s.created_at * 1000) : null);
+              if (tsSrc && !isNaN(tsSrc)) {
+                when = `${tsSrc.toLocaleDateString()} ${tsSrc.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+              }
+              const sub = [idSlice, when].filter(Boolean).join(' · ');
+              const runningTerminalId = runningAgentSessionMap[`${launcher.key}:${s.session_id}`];
+              const hideSession = (e) => {
+                e.stopPropagation();
+                // Optimistic local removal; no WS push in this app yet, so
+                // the next flyout open is what re-syncs from the server.
+                setSessions((prev) => (prev || []).filter((x) => x.session_id !== s.session_id));
+                setTotal((prev) => Math.max(0, prev - 1));
+                client.hideSession(launcher.key, s.session_id).catch(() => {});
+              };
+              return (
+                <div
+                  key={s.session_id}
+                  className="group relative w-full hover:bg-white/5 transition-colors border-b border-[var(--color-border)] last:border-0"
+                >
                   <button
-                    onClick={(e) => { e.stopPropagation(); loadMore(); }}
-                    disabled={loadingMore}
-                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-muted)] hover:bg-white/5 disabled:opacity-60"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeFlyout();
+                      if (runningTerminalId) {
+                        onOpenRunningAgentSession(runningTerminalId);
+                      } else {
+                        onResume(launcher.key, s.session_id, display);
+                      }
+                    }}
+                    className="w-full text-left px-3 py-2 pr-9"
+                    title={`${runningTerminalId ? 'Open' : 'Resume'} "${display}" (${s.session_id})`}
                   >
-                    {loadingMore ? 'Loading…' : `Load more (${Math.max(0, total - (sessions?.length || 0))} remaining)`}
+                    <div className="text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2">
+                      {runningTerminalId && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      )}
+                      <span className="truncate">{display}</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">{sub}</div>
                   </button>
-                )}
-              </>
+                  <button
+                    onClick={hideSession}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger)]/20 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-opacity cursor-pointer"
+                    title="Hide from picker (transcript kept on disk)"
+                  >
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+            {!loading && !error && hasMore && (
+              // Terminal fallback row for when 50 rows don't overflow
+              // the flyout's own scrollbar (no scroll event ever fires
+              // then, so page 2 would otherwise be unreachable).
+              <button
+                onClick={(e) => { e.stopPropagation(); loadMore(); }}
+                disabled={loadingMore}
+                className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-muted)] hover:bg-white/5 disabled:opacity-60"
+              >
+                {loadingMore ? 'Loading…' : `Load more (${Math.max(0, total - (sessions?.length || 0))} remaining)`}
+              </button>
             )}
           </div>,
           document.body
@@ -475,15 +423,15 @@ export function register(host) {
     );
   }
 
+  // Core's `core.nav` slot props also include `terminals`, `onCreateTerminal`,
+  // `onToggleTerminal` and `onCloseTerminal`; this component deliberately
+  // takes none of them any more — the plain-terminal launcher is
+  // aw-app-terminal's (see the header note).
   function AgentsNavSlot({
     aiAgents,
     agentSessions,
-    terminals,
     onCreateAgent,
-    onCreateTerminal,
     onToggleAgent,
-    onToggleTerminal,
-    onCloseTerminal,
   }) {
     const [open, setOpen] = useState(false);
     const closeTimer = useRef(null);
@@ -524,36 +472,28 @@ export function register(host) {
 
     useEffect(() => () => clearTimeout(closeTimer.current), []);
 
-    const totalCount = (agentSessions?.length || 0) + (terminals?.length || 0);
+    // Agent sessions only. This badge used to add `terminals.length` on top,
+    // which made "Agents 3" mean "two CLI sessions and a shell" — the
+    // terminals are aw-app-terminal's row now and carry their own count.
+    const totalCount = agentSessions?.length || 0;
 
-    const launchers = (() => {
-      const configured = [...(aiAgents || [])];
+    // `aiAgents` is workspace config (aw-workspace-ui App.jsx reads
+    // cfg.ai_agents), so it CAN still carry a `{type: 'terminal'}` entry from
+    // before this split — filter it out rather than rendering a row whose
+    // launch action no longer exists here.
+    const agentLaunchers = (() => {
+      const configured = [...(aiAgents || [])].filter((a) => a.type !== 'terminal');
       if (!configured.some((a) => a.type === ANTIGRAVITY_AGENT.type)) {
         configured.push(ANTIGRAVITY_AGENT);
       }
-      const list = configured.map((a) => ({
+      return configured.map((a) => ({
         key: a.type,
-        label: a.type === 'terminal' ? 'Terminals' : (a.label || a.type),
+        label: a.label || a.type,
         icon: a.icon,
         color: a.color,
-        action: a.type === 'terminal'
-          ? () => onCreateTerminal()
-          : () => onCreateAgent(a.type),
+        action: () => onCreateAgent(a.type),
       }));
-      if (!list.some((o) => o.key === 'terminal')) {
-        list.push({
-          key: 'terminal',
-          label: 'Terminals',
-          icon: 'terminal',
-          color: 'var(--color-accent)',
-          action: () => onCreateTerminal(),
-        });
-      }
-      return list;
     })();
-
-    const agentLaunchers = launchers.filter((o) => o.key !== 'terminal');
-    const terminalLauncher = launchers.find((o) => o.key === 'terminal');
 
     const runningAgentSessionMap = {};
     (agentSessions || []).forEach((s) => {
@@ -563,19 +503,11 @@ export function register(host) {
     });
 
     const sharedLauncherProps = {
-      terminals,
       runningAgentSessionMap,
       liveAgentSessions: agentSessions,
       onOpenRunningAgentSession: (sessionId) => {
         setOpen(false);
         onToggleAgent(sessionId);
-      },
-      onOpenRunningTerminal: (sessionId) => {
-        setOpen(false);
-        onToggleTerminal(sessionId);
-      },
-      onCloseRunningTerminal: (sessionId) => {
-        onCloseTerminal(sessionId);
       },
       onFlyoutEnter,
       onFlyoutLeave,
@@ -612,21 +544,6 @@ export function register(host) {
                 {...sharedLauncherProps}
               />
             ))}
-            {terminalLauncher && (
-              <>
-                <div className="border-t border-[var(--color-border)] my-1" />
-                <LauncherRow
-                  key={terminalLauncher.key}
-                  launcher={terminalLauncher}
-                  onLaunch={() => { setOpen(false); terminalLauncher.action(); }}
-                  onResume={(type, sessionId, label) => {
-                    setOpen(false);
-                    onCreateAgent(type, sessionId, label);
-                  }}
-                  {...sharedLauncherProps}
-                />
-              </>
-            )}
           </div>
         )}
       </div>
