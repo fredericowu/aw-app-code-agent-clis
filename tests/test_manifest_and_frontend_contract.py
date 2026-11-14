@@ -23,6 +23,41 @@ def test_manifest_declares_all_supported_clis_and_real_installers():
     assert all((ROOT / path).is_file() for path in declared.values())
 
 
+def test_the_terminal_launcher_is_not_contributed_here_any_more():
+    """The plain-terminal row lives in aw-app-terminal now (card 4185bf3b).
+
+    Asserted against the BUILT bundle, not the source: the source still
+    *mentions* core's terminal props in comments explaining why it ignores
+    them, and comments are what a source-level grep would trip over. The
+    bundle is also what actually ships.
+    """
+    bundle = (ROOT / "ui" / "dist" / "code-agent-clis.js").read_text()
+    for gone in ("New Terminal", "No running terminals.", "onCreateTerminal",
+                 "onToggleTerminal", "onCloseTerminal", "Close terminal"):
+        assert gone not in bundle, f"{gone!r} is still in the shipped bundle"
+
+
+def test_the_agents_badge_counts_agent_sessions_only():
+    # The badge used to be agentSessions + terminals, so "Agents 3" could mean
+    # two CLI sessions and a shell. Terminals are aw-app-terminal's row now.
+    source = (ROOT / "ui" / "src" / "plugin.jsx").read_text()
+    assert "const totalCount = agentSessions?.length || 0;" in source
+    assert "(terminals?.length || 0)" not in source
+
+
+def test_manifest_requires_the_terminal_app():
+    manifest = json.loads((ROOT / "aw-app.json").read_text())
+    deps = manifest["dependencies"]["apps"]
+    terminal = next((d for d in deps if d["id"] == "terminal"), None)
+    assert terminal is not None, "the Terminal launcher moved to aw-app-terminal — declare it"
+    # required: a workspace that installs this app must still get a terminal
+    # launcher. The reconciler installs required deps first and keeps them
+    # loaded (src/apps/reconciler.py).
+    assert terminal["required"] is True
+    assert terminal["version"].startswith(">=")
+    assert terminal.get("reason")
+
+
 def test_frontend_bundle_keeps_existing_agents_and_adds_antigravity():
     source = (ROOT / "ui" / "src" / "plugin.jsx").read_text()
     bundle = (ROOT / "ui" / "dist" / "code-agent-clis.js").read_text()

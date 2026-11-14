@@ -97,6 +97,12 @@
         "version": ">=0.1.0",
         "required": false,
         "reason": "Provides the contributes.tasks surface that seeds the 'Sync: Agents' schedule. Non-required: the declaration is held and replayed when a provider appears, so this app installs cleanly either way and agent sync stays runnable by hand in the meantime."
+      },
+      {
+        "id": "terminal",
+        "version": ">=0.2.0",
+        "required": true,
+        "reason": "agent CLI sessions run inside workspace terminals; the Terminal launcher UI lives in aw-app-terminal"
       }
     ],
     "note": "Runtime-enforced app dependency: aw-workspace installs/loads essentials before code-agent-clis and keeps essentials loaded while code-agent-clis is desired."
