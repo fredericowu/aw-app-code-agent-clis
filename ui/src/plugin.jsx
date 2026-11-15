@@ -214,8 +214,6 @@ export function register(host) {
 
     const supportsFlyout = AGENT_TYPES_WITH_SESSIONS.has(launcher.key);
 
-    const flyoutOpenRef = useRef(false);
-
     const reportOpen = useCallback(() => {
       if (reportedOpenRef.current) return;
       reportedOpenRef.current = true;
@@ -235,7 +233,6 @@ export function register(host) {
     const scheduleClose = useCallback(() => {
       cancelClose();
       closeTimer.current = setTimeout(() => {
-        flyoutOpenRef.current = false;
         setFlyoutOpen(false);
         reportClose();
       }, 150);
@@ -248,7 +245,6 @@ export function register(host) {
 
     const closeFlyout = useCallback(() => {
       cancelClose();
-      flyoutOpenRef.current = false;
       setFlyoutOpen(false);
       reportClose();
     }, [cancelClose, reportClose]);
@@ -258,7 +254,6 @@ export function register(host) {
       cancelClose();
       const rect = rowRef.current?.getBoundingClientRect();
       if (rect) setPos({ top: rect.top, left: rect.right + 4 });
-      flyoutOpenRef.current = true;
       setFlyoutOpen(true);
       reportOpen();
       if (!loading) {
