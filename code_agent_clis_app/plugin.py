@@ -25,6 +25,7 @@ import json
 import logging
 import os
 
+from . import clis as clis_mod
 from . import routes as routes_mod
 from .sessions import SessionStore
 
@@ -71,9 +72,27 @@ class CodeAgentClisAppPlugin:
         store = SessionStore(ctx)
         ctx.routes.register(routes_mod.build_routes(store))
 
+        try:
+            from src.api import terminal_manager as tm_mod
+            register_fn = getattr(tm_mod, "register_cli_provider", None)
+            if callable(register_fn):
+                register_fn(
+                    insecure_flags=clis_mod.insecure_flags(),
+                    extract_session_id=clis_mod.extract_agent_session_id,
+                )
+        except Exception:
+            pass
+
         log.info("aw-app-code-agent-clis activated: installed %s, routes mounted", installed)
 
     async def deactivate(self) -> None:
+        try:
+            from src.api import terminal_manager as tm_mod
+            unregister_fn = getattr(tm_mod, "unregister_cli_provider", None)
+            if callable(unregister_fn):
+                unregister_fn()
+        except Exception:
+            pass
         # Revert is driven by the framework's journal reverse-replay (it runs
         # scripts/uninstall.sh once on uninstall) — nothing to undo here.
         log.info("aw-app-code-agent-clis deactivated")

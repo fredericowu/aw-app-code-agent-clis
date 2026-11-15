@@ -1,10 +1,27 @@
 // Framework-free client core (same shape as aw-app-template's client.js) —
-// talks to this app's own /agent-sessions endpoints (routes.py).
+// talks to this app's own /agent-sessions and /clis endpoints (routes.py).
 //
 //   apiUrl:    (sub) => string   e.g. sub="/agent-sessions" -> ".../api/apps/code-agent-clis/agent-sessions"
 //   fetchImpl: (path, init) => Promise<Response>
 
 export function createClient({ apiUrl, fetchImpl = fetch }) {
+  async function listClis() {
+    const res = await fetchImpl(apiUrl('/clis'));
+    if (!res.ok) throw new Error(`GET /clis -> ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function buildCommand(payload) {
+    const res = await fetchImpl(apiUrl('/build-command'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    if (!res.ok) throw new Error(`POST /build-command -> ${res.status}`);
+    return res.json();
+  }
+
   // No-arg call keeps the legacy bare-array contract (TerminalWindow.jsx,
   // MobileApp.jsx both still fetch this way). Passing { limit, before }
   // opts into the paginated envelope { sessions, total, has_more } instead
@@ -33,5 +50,5 @@ export function createClient({ apiUrl, fetchImpl = fetch }) {
     return res.json();
   }
 
-  return { listSessions, hideSession };
+  return { listClis, buildCommand, listSessions, hideSession };
 }
