@@ -11,10 +11,11 @@ cd "$(dirname "$0")/.."
 
 AW_BIN_DIR="/usr/local/bin"
 
-echo "== npm-based agent CLIs: claude/codex/copilot =="
+echo "== npm-based agent CLIs: claude/codex/copilot; official installer: opencode =="
 bash scripts/install_claude.sh
 bash scripts/install_codex.sh
 bash scripts/install_copilot.sh
+bash scripts/install_opencode.sh
 
 echo "== cursor-agent (vendor installer) =="
 bash scripts/install_cursor.sh
@@ -24,7 +25,7 @@ bash scripts/install_antigravity.sh
 
 echo "== resolution check (bin dir: $AW_BIN_DIR) =="
 export PATH="$AW_BIN_DIR:$PATH"
-for bin in claude codex copilot cursor-agent agy; do
+for bin in claude codex copilot cursor-agent agy opencode; do
   which "$bin"
 done
 
@@ -34,10 +35,11 @@ codex --version
 copilot --version
 cursor-agent --version
 agy --version
+opencode --version
 
 echo "== idempotency re-run (each install script must be safe to run twice) =="
-for s in install_claude install_codex install_copilot install_cursor install_antigravity; do
+for s in install_claude install_codex install_copilot install_cursor install_antigravity install_opencode; do
   bash "scripts/${s}.sh"
 done
 
-echo "OK: all 5 code-agent CLIs installed and resolve"
+echo "OK: all 6 code-agent CLIs installed and resolve"

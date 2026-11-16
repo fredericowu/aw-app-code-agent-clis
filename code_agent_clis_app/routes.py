@@ -11,7 +11,7 @@ and therefore is the one that can discover their on-disk sessions).
 
   GET    /clis                                                   (CLI definitions & flags)
   POST   /build-command                                          (build launch/resume/insecure cmd)
-  GET    /agent-sessions?type=<claude|codex|copilot|cursor|antigravity>
+  GET    /agent-sessions?type=<claude|codex|copilot|cursor|antigravity|opencode>
                          [&limit=<1-200>&before=<updated_at float>]
   DELETE /agent-sessions/{session_id}?type=<...>&restore=<0|1>   (soft delete)
   PUT    /agent-sessions/{session_id}?type=<...>   {name}        (rename override)

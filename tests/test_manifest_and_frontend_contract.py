@@ -19,8 +19,12 @@ def test_manifest_declares_all_supported_clis_and_real_installers():
         "copilot": "scripts/install_copilot.sh",
         "cursor-agent": "scripts/install_cursor.sh",
         "agy": "scripts/install_antigravity.sh",
+        "opencode": "scripts/install_opencode.sh",
     }
     assert all((ROOT / path).is_file() for path in declared.values())
+    opencode_installer = (ROOT / declared["opencode"]).read_text()
+    assert "https://opencode.ai/install" in opencode_installer
+    assert "npm install -g opencode-ai" not in opencode_installer
 
 
 def test_the_terminal_launcher_is_not_contributed_here_any_more():
@@ -72,3 +76,15 @@ def test_frontend_bundle_keeps_existing_agents_and_adds_antigravity():
     assert "__awTerminal" in bundle
     assert "--dangerously-skip-permissions" in bundle
     assert "--conversation" in bundle
+
+
+def test_frontend_bundle_ships_opencode():
+    source = (ROOT / "ui" / "src" / "clis.js").read_text()
+    plugin = (ROOT / "ui" / "src" / "plugin.jsx").read_text()
+    bundle = (ROOT / "ui" / "dist" / "code-agent-clis.js").read_text()
+    assert "type: 'opencode'" in source
+    assert "'opencode'" in plugin
+    for needle in ('type: "opencode"', 'command: "opencode"', 'insecureFlag: "--auto"',
+                   'resumeFlag: "--session"'):
+        assert needle in bundle, f"{needle!r} missing from the shipped bundle"
+    assert "OPENCODE_AGENT" in source  # injected into withManagedAgentClis

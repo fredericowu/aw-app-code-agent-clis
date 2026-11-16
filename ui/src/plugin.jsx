@@ -16,7 +16,7 @@
 // instance" — external: ['react','react-dom'] in vite.config.js).
 //
 // This app owns both the Agents nav menu (launch/resume a claude/codex/
-// copilot/cursor/antigravity session) and the agent CLI command/session/
+// copilot/cursor/antigravity/opencode session) and the agent CLI command/session/
 // insecure-mode management layer (`window.__awCodeAgentClis`), using the
 // terminal management API exposed by `aw-app-terminal` (`window.__awTerminal`).
 
@@ -24,6 +24,7 @@ import { createClient } from './client.js';
 import {
   AGENT_CLIS,
   ANTIGRAVITY_AGENT,
+  OPENCODE_AGENT,
   buildAgentCommand,
   getAgentCli,
   getInsecureTooltip,
@@ -36,7 +37,7 @@ const SLUG = 'code-agent-clis'; // must match aw-app.json's "id"
 // The CLI types this app installs and can discover on-disk sessions for
 // (routes.py/sessions.py AGENT_TYPES) — kept in sync manually; gemini isn't
 // one of them (this app never installed/managed a gemini CLI).
-const AGENT_TYPES_WITH_SESSIONS = new Set(['claude', 'codex', 'copilot', 'cursor', 'antigravity']);
+const AGENT_TYPES_WITH_SESSIONS = new Set(['claude', 'codex', 'copilot', 'cursor', 'antigravity', 'opencode']);
 
 // Keeps the expensive per-page name resolution bounded (sessions.py's
 // _first_user_message read) regardless of how many sessions exist on disk
@@ -122,6 +123,7 @@ export function register(host) {
       slug: SLUG,
       clis: AGENT_CLIS,
       antigravityAgent: ANTIGRAVITY_AGENT,
+      opencodeAgent: OPENCODE_AGENT,
       getCli: getAgentCli,
       withManagedAgentClis,
       supportsInsecureMode,
@@ -165,6 +167,12 @@ export function register(host) {
       <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color }}>
         <path d="M12 3l7.5 4.25v8.5L12 20l-7.5-4.25v-8.5L12 3z" />
         <path d="M8.5 9.5L12 7.5l3.5 2v5L12 16.5l-3.5-2v-5z" />
+      </svg>
+    ),
+    opencode: (color) => (
+      <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+        <path d="M8 7l-5 5 5 5" />
+        <path d="M16 7l5 5-5 5" />
       </svg>
     ),
     antigravity: () => (
