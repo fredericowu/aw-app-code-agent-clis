@@ -78,6 +78,13 @@ class AggregateInstallTest(unittest.TestCase):
             str(installer.SCRIPTS_DIR / "uninstall.sh"),
         )
 
+    def test_opencode_health_check_requires_persistent_binary(self):
+        from code_agent_clis_app.plugin import _VERIFY_OVERRIDES
+
+        verify = _VERIFY_OVERRIDES["opencode"]
+        self.assertIn("opencode-cli/.opencode/bin/opencode", verify)
+        self.assertIn("test -x", verify)
+
 
 if __name__ == "__main__":
     unittest.main()

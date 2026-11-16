@@ -25,6 +25,8 @@ def test_manifest_declares_all_supported_clis_and_real_installers():
     opencode_installer = (ROOT / declared["opencode"]).read_text()
     assert "https://opencode.ai/install" in opencode_installer
     assert "npm install -g opencode-ai" not in opencode_installer
+    assert 'OPENCODE_HOME="$AW_HOME/opencode-cli"' in opencode_installer
+    assert 'HOME="$OPENCODE_HOME" bash' in opencode_installer
 
 
 def test_the_terminal_launcher_is_not_contributed_here_any_more():

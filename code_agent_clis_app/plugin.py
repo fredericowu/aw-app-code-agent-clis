@@ -52,6 +52,12 @@ log = logging.getLogger("aw_apps.code_agent_clis")
 # check's behavior.
 _VERIFY_OVERRIDES = {
     "cursor-agent": "CURSOR_AGENT_DISABLE_DEBUG_LOG=1 cursor-agent --version",
+    "opencode": (
+        'test -x "${AW_WORKSPACE_HOME:-$HOME/.aw-workspace}/'
+        'opencode-cli/.opencode/bin/opencode" && '
+        'HOME="${AW_WORKSPACE_HOME:-$HOME/.aw-workspace}/opencode-cli" '
+        'opencode --version'
+    ),
 }
 
 

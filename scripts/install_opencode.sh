@@ -11,7 +11,10 @@
 set -euo pipefail
 
 AW_BIN_DIR="${AW_BIN_DIR:-/usr/local/bin}"
-OPENCODE_BIN="$HOME/.opencode/bin/opencode"
+AW_HOME="${AW_WORKSPACE_HOME:-$HOME/.aw-workspace}"
+OPENCODE_HOME="$AW_HOME/opencode-cli"
+OPENCODE_BIN="$OPENCODE_HOME/.opencode/bin/opencode"
+mkdir -p "$OPENCODE_HOME"
 
 link_binary() {
   if [ -w "$AW_BIN_DIR" ]; then
@@ -35,7 +38,8 @@ if [ -n "$installed" ] && { [ -z "$latest" ] || [ "$installed" = "$latest" ]; };
   exit 0
 fi
 
-curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+curl -fsSL https://opencode.ai/install \
+  | HOME="$OPENCODE_HOME" bash -s -- --no-modify-path
 link_binary
 
-"$AW_BIN_DIR/opencode" --version
+HOME="$OPENCODE_HOME" "$AW_BIN_DIR/opencode" --version
