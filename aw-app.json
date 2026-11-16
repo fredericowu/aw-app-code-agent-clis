@@ -100,7 +100,7 @@
       },
       {
         "id": "terminal",
-        "version": ">=0.2.0",
+        "version": ">=0.4.0",
         "required": true,
         "reason": "agent CLI sessions run inside workspace terminals; the Terminal launcher UI lives in aw-app-terminal"
       }

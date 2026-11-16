@@ -9,7 +9,9 @@ Replaces the aw-workspace core stub that used to live at
 out of core into this app, which is the one that actually installs the CLIs
 and therefore is the one that can discover their on-disk sessions).
 
-  GET    /agent-sessions?type=<claude|codex|copilot|cursor>
+  GET    /clis                                                   (CLI definitions & flags)
+  POST   /build-command                                          (build launch/resume/insecure cmd)
+  GET    /agent-sessions?type=<claude|codex|copilot|cursor|antigravity>
                          [&limit=<1-200>&before=<updated_at float>]
   DELETE /agent-sessions/{session_id}?type=<...>&restore=<0|1>   (soft delete)
   PUT    /agent-sessions/{session_id}?type=<...>   {name}        (rename override)
@@ -26,11 +28,47 @@ from __future__ import annotations
 
 from fastapi import Body, FastAPI, Query
 
+from .clis import (
+    build_agent_command,
+    get_cli,
+    is_insecure_command,
+    list_clis,
+)
 from .sessions import AGENT_TYPES, SessionStore
 
 
 def build_routes(store: SessionStore) -> FastAPI:
     app = FastAPI(title="code-agent-clis")
+
+    @app.get("/clis")
+    async def get_agent_clis() -> list[dict]:
+        return list_clis()
+
+    @app.post("/build-command")
+    async def post_build_command(data: dict = Body(default={})) -> dict:
+        agent_type = (data.get("type") or "").strip()
+        resume_session_id = data.get("resume_session_id")
+        session_id = data.get("session_id")
+        cli = get_cli(agent_type)
+        if "is_insecure" in data and data.get("is_insecure") is not None:
+            is_insecure = bool(data.get("is_insecure"))
+        elif resume_session_id:
+            is_insecure = False
+        else:
+            is_insecure = bool(cli and cli.get("default_insecure_on_create"))
+        command, resolved_id = build_agent_command(
+            agent_type,
+            resume_session_id=resume_session_id,
+            is_insecure=is_insecure,
+            session_id=session_id,
+        )
+        return {
+            "type": agent_type,
+            "label": cli["label"] if cli else agent_type,
+            "command": command,
+            "session_id": resolved_id,
+            "insecure": is_insecure_command(command, agent_type),
+        }
 
     @app.get("/agent-sessions")
     async def list_agent_sessions(

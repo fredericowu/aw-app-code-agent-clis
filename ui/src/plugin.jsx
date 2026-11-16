@@ -15,28 +15,21 @@
 // closes over `host` without importing react itself (ADR "one shared React
 // instance" — external: ['react','react-dom'] in vite.config.js).
 //
-// This ports aw-workspace-ui's src/components/AgentsNav.jsx (the "Agents" nav
-// menu: launch/resume a claude/codex/copilot/cursor/antigravity session) into
-// this app, per the 2026-08-03 decision to decouple it out of core — see
-// docs/knowledge_base/docs/architecture/monolith-migration-roadmap.md.
-// The plain-terminal PTY shell (TerminalWindow chrome, /ws/terminal/*) stays
-// core: this component only owns the AGENT-CLI-specific menu/session-picker,
-// driving agent-session creation/toggling through the same callback props
-// aw-workspace-ui's App.jsx already threads to this slot (onCreateAgent,
-// onToggleAgent) — no new host capability was needed since AppSlot already
-// forwards arbitrary `props` to whatever fills the slot.
-//
-// A PLAIN TERMINAL IS NO LONGER LAUNCHED FROM HERE. That row moved to its own
-// app, aw-app-terminal, which contributes it to `core.nav.workspace` — this
-// app declares a required `dependencies.apps` entry on it (aw-app.json), so
-// installing this one still gets you a terminal launcher, just not under
-// "Agents". A shell is not an agent-CLI session: having it here also meant the
-// Agents badge counted terminals. App.jsx still threads onCreateTerminal /
-// onToggleTerminal / onCloseTerminal / terminals into this slot and that is
-// fine — those props are core's contract with the slot, not ours, and other
-// fillers may use them; this component simply no longer reads them.
+// This app owns both the Agents nav menu (launch/resume a claude/codex/
+// copilot/cursor/antigravity session) and the agent CLI command/session/
+// insecure-mode management layer (`window.__awCodeAgentClis`), using the
+// terminal management API exposed by `aw-app-terminal` (`window.__awTerminal`).
 
 import { createClient } from './client.js';
+import {
+  AGENT_CLIS,
+  ANTIGRAVITY_AGENT,
+  buildAgentCommand,
+  getAgentCli,
+  getInsecureTooltip,
+  supportsInsecureMode,
+  withManagedAgentClis,
+} from './clis.js';
 
 const SLUG = 'code-agent-clis'; // must match aw-app.json's "id"
 
@@ -44,14 +37,6 @@ const SLUG = 'code-agent-clis'; // must match aw-app.json's "id"
 // (routes.py/sessions.py AGENT_TYPES) — kept in sync manually; gemini isn't
 // one of them (this app never installed/managed a gemini CLI).
 const AGENT_TYPES_WITH_SESSIONS = new Set(['claude', 'codex', 'copilot', 'cursor', 'antigravity']);
-
-const ANTIGRAVITY_AGENT = {
-  type: 'antigravity',
-  label: 'Antigravity',
-  command: 'agy',
-  color: '#4285f4',
-  icon: 'antigravity',
-};
 
 // Keeps the expensive per-page name resolution bounded (sessions.py's
 // _first_user_message read) regardless of how many sessions exist on disk
@@ -61,15 +46,101 @@ const PAGE_SIZE = 50;
 export function register(host) {
   // client.js composes these itself as fetchImpl(apiUrl(path)) — apiUrl
   // already returns the fully `/api/apps/<slug>`-prefixed path, so fetchImpl
-  // must be the RAW fetch (host.sdk.api.fetch), not host.app.fetch (which
-  // prefixes AGAIN, e.g. /api/apps/code-agent-clis/api/apps/code-agent-clis/
-  // agent-sessions — 404). Every /agent-sessions call hit this double
-  // prefix — found 2026-08-04 chasing a persistent "GET /agent-sessions ->
-  // 404" in the Agents nav session picker.
+  // must be the RAW fetch (host.sdk.api.fetch), not host.app.fetch.
   const client = createClient({
     apiUrl: host.app.apiUrl,
     fetchImpl: host.sdk.api.fetch,
   });
+
+  // Terminal management bridge: prefers `window.__awTerminal` contributed by
+  // aw-app-terminal (a required dependency of this app), falling back to
+  // direct `/api/terminals` calls if aw-app-terminal hasn't registered yet.
+  function getTerminalBridge() {
+    if (typeof window !== 'undefined' && window.__awTerminal) {
+      return window.__awTerminal;
+    }
+    return {
+      async createTerminal(options) {
+        const res = await host.sdk.api.fetch('/api/terminals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(options || {}),
+        });
+        return res.json();
+      },
+      async restartTerminal(id, options) {
+        const res = await host.sdk.api.fetch(`/api/terminals/${encodeURIComponent(id)}/restart`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(options || {}),
+        });
+        return res.json();
+      },
+      openTerminal(id) {
+        if (typeof window !== 'undefined' && window.__awOpenTerminal) {
+          window.__awOpenTerminal(id);
+          return true;
+        }
+        return false;
+      },
+    };
+  }
+
+  async function launchAgentTerminal(agentType, resumeSessionId = null, resumeLabel = null, options = {}) {
+    const configured = options.aiAgents || [];
+    const agentDef = configured.find((a) => a.type === agentType) || getAgentCli(agentType) || (
+      agentType === 'antigravity' ? { label: 'Antigravity', command: 'agy' } : null
+    );
+    const label = agentDef?.label || agentType;
+    const sessionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `sess-${Date.now()}`;
+    let name;
+    let command;
+    if (resumeSessionId) {
+      name = resumeLabel
+        ? (resumeLabel.length > 60 ? resumeLabel.slice(0, 57) + '…' : resumeLabel)
+        : label;
+      command = buildAgentCommand(agentType, resumeSessionId, !!options.isInsecure, name, null, agentDef?.command);
+    } else {
+      name = `${label} - ${sessionId.slice(-4)}`;
+      const defaultInsecure = options.isInsecure !== undefined
+        ? !!options.isInsecure
+        : !!(getAgentCli(agentType)?.defaultInsecureOnCreate);
+      command = buildAgentCommand(agentType, null, defaultInsecure, name, sessionId, agentDef?.command);
+    }
+    const bridge = getTerminalBridge();
+    const created = await bridge.createTerminal({ name, command, type: agentType });
+    if (created?.id && options.openWindow !== false) {
+      bridge.openTerminal(created.id);
+    }
+    return { ...created, name, command, agentSessionId: resumeSessionId || sessionId };
+  }
+
+  if (typeof window !== 'undefined') {
+    const api = {
+      slug: SLUG,
+      clis: AGENT_CLIS,
+      antigravityAgent: ANTIGRAVITY_AGENT,
+      getCli: getAgentCli,
+      withManagedAgentClis,
+      supportsInsecureMode,
+      getInsecureTooltip,
+      buildAgentCommand,
+      launchAgentTerminal,
+      listClis: client.listClis,
+      buildCommandRemote: client.buildCommand,
+      listSessions: client.listSessions,
+      hideSession: client.hideSession,
+    };
+    window.__awCodeAgentClis = api;
+    window.dispatchEvent(new CustomEvent('aw-code-agent-clis-ready', { detail: api }));
+    if (typeof host.onDispose === 'function') {
+      host.onDispose(() => {
+        if (window.__awCodeAgentClis === api) delete window.__awCodeAgentClis;
+      });
+    }
+  }
 
   const { useState, useRef, useCallback, useEffect } = host.React;
   const { createPortal } = host.ReactDOM;
@@ -143,8 +214,6 @@ export function register(host) {
 
     const supportsFlyout = AGENT_TYPES_WITH_SESSIONS.has(launcher.key);
 
-    const flyoutOpenRef = useRef(false);
-
     const reportOpen = useCallback(() => {
       if (reportedOpenRef.current) return;
       reportedOpenRef.current = true;
@@ -164,7 +233,6 @@ export function register(host) {
     const scheduleClose = useCallback(() => {
       cancelClose();
       closeTimer.current = setTimeout(() => {
-        flyoutOpenRef.current = false;
         setFlyoutOpen(false);
         reportClose();
       }, 150);
@@ -177,7 +245,6 @@ export function register(host) {
 
     const closeFlyout = useCallback(() => {
       cancelClose();
-      flyoutOpenRef.current = false;
       setFlyoutOpen(false);
       reportClose();
     }, [cancelClose, reportClose]);
@@ -187,13 +254,8 @@ export function register(host) {
       cancelClose();
       const rect = rowRef.current?.getBoundingClientRect();
       if (rect) setPos({ top: rect.top, left: rect.right + 4 });
-      flyoutOpenRef.current = true;
       setFlyoutOpen(true);
       reportOpen();
-      // Re-fetch every time the flyout opens — this app has no WS push (that
-      // was monolith-only PromptDetector plumbing); a plain poll-on-open keeps
-      // this simple and correct enough for a picker menu. Only the first
-      // page loads here; scrolling (or "Load more") pages in the rest.
       if (!loading) {
         setLoading(true);
         setError(null);
@@ -231,8 +293,6 @@ export function register(host) {
       if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) loadMore();
     }, [hasMore, loadingMore, loadMore]);
 
-    // Live terminals whose agent_session_id isn't discovered on disk yet
-    // (e.g. right after launch, before the CLI has written its session file).
     const knownSessionIds = new Set((sessions || []).map(s => s.session_id));
     const undetectedLive = (liveAgentSessions || []).filter(s =>
       s.type === launcher.key && s.alive &&
@@ -342,9 +402,6 @@ export function register(host) {
             ))}
             {!loading && !error && sessions && sortedSessions.map((s) => {
               const idSlice = s.session_id ? `${s.session_id.slice(0, 8)}-${s.session_id.slice(9, 13)}…` : '';
-              // A noise-only transcript (stripped to nothing by
-              // _first_user_message) must never fall back to showing
-              // the literal "[SYSTEM]" marker — UUID+timestamp instead.
               const display = s.name || idSlice || '(untitled)';
               let when = '';
               const tsSrc = s.updated_at
@@ -357,8 +414,6 @@ export function register(host) {
               const runningTerminalId = runningAgentSessionMap[`${launcher.key}:${s.session_id}`];
               const hideSession = (e) => {
                 e.stopPropagation();
-                // Optimistic local removal; no WS push in this app yet, so
-                // the next flyout open is what re-syncs from the server.
                 setSessions((prev) => (prev || []).filter((x) => x.session_id !== s.session_id));
                 setTotal((prev) => Math.max(0, prev - 1));
                 client.hideSession(launcher.key, s.session_id).catch(() => {});
@@ -405,9 +460,6 @@ export function register(host) {
               );
             })}
             {!loading && !error && hasMore && (
-              // Terminal fallback row for when 50 rows don't overflow
-              // the flyout's own scrollbar (no scroll event ever fires
-              // then, so page 2 would otherwise be unreachable).
               <button
                 onClick={(e) => { e.stopPropagation(); loadMore(); }}
                 disabled={loadingMore}
@@ -423,10 +475,6 @@ export function register(host) {
     );
   }
 
-  // Core's `core.nav` slot props also include `terminals`, `onCreateTerminal`,
-  // `onToggleTerminal` and `onCloseTerminal`; this component deliberately
-  // takes none of them any more — the plain-terminal launcher is
-  // aw-app-terminal's (see the header note).
   function AgentsNavSlot({
     aiAgents,
     agentSessions,
@@ -472,26 +520,33 @@ export function register(host) {
 
     useEffect(() => () => clearTimeout(closeTimer.current), []);
 
-    // Agent sessions only. This badge used to add `terminals.length` on top,
-    // which made "Agents 3" mean "two CLI sessions and a shell" — the
-    // terminals are aw-app-terminal's row now and carry their own count.
+    // Agent sessions only.
     const totalCount = agentSessions?.length || 0;
 
-    // `aiAgents` is workspace config (aw-workspace-ui App.jsx reads
-    // cfg.ai_agents), so it CAN still carry a `{type: 'terminal'}` entry from
-    // before this split — filter it out rather than rendering a row whose
-    // launch action no longer exists here.
-    const agentLaunchers = (() => {
-      const configured = [...(aiAgents || [])].filter((a) => a.type !== 'terminal');
-      if (!configured.some((a) => a.type === ANTIGRAVITY_AGENT.type)) {
-        configured.push(ANTIGRAVITY_AGENT);
+    const handleLaunchOrResume = useCallback((type, sessionId = null, label = null) => {
+      if (typeof onCreateAgent === 'function') {
+        onCreateAgent(type, sessionId, label);
+        return;
       }
+      launchAgentTerminal(type, sessionId, label, { aiAgents }).catch(() => {});
+    }, [onCreateAgent, aiAgents]);
+
+    const handleOpenSession = useCallback((sessionId) => {
+      if (typeof onToggleAgent === 'function') {
+        onToggleAgent(sessionId);
+        return;
+      }
+      getTerminalBridge().openTerminal(sessionId);
+    }, [onToggleAgent]);
+
+    const agentLaunchers = (() => {
+      const configured = withManagedAgentClis(aiAgents || []);
       return configured.map((a) => ({
         key: a.type,
         label: a.label || a.type,
         icon: a.icon,
         color: a.color,
-        action: () => onCreateAgent(a.type),
+        action: () => handleLaunchOrResume(a.type),
       }));
     })();
 
@@ -507,7 +562,7 @@ export function register(host) {
       liveAgentSessions: agentSessions,
       onOpenRunningAgentSession: (sessionId) => {
         setOpen(false);
-        onToggleAgent(sessionId);
+        handleOpenSession(sessionId);
       },
       onFlyoutEnter,
       onFlyoutLeave,
@@ -539,7 +594,7 @@ export function register(host) {
                 onLaunch={() => { setOpen(false); opt.action(); }}
                 onResume={(type, sessionId, label) => {
                   setOpen(false);
-                  onCreateAgent(type, sessionId, label);
+                  handleLaunchOrResume(type, sessionId, label);
                 }}
                 {...sharedLauncherProps}
               />

@@ -68,3 +68,7 @@ def test_frontend_bundle_keeps_existing_agents_and_adds_antigravity():
     assert "Antigravity" in bundle
     assert "agy" in source
     assert "agy" in bundle
+    assert "__awCodeAgentClis" in bundle
+    assert "__awTerminal" in bundle
+    assert "--dangerously-skip-permissions" in bundle
+    assert "--conversation" in bundle

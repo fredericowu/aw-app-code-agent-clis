@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from code_agent_clis_app import clis as clis_mod  # noqa: E402
 from code_agent_clis_app import routes as routes_mod  # noqa: E402
 from code_agent_clis_app import sessions as sessions_mod  # noqa: E402
 from code_agent_clis_app.sessions import SessionStore  # noqa: E402
@@ -311,3 +312,46 @@ def test_antigravity_invalid_or_missing_cache_is_empty(tmp_path, monkeypatch):
     cache_dir.mkdir(parents=True)
     (cache_dir / "last_conversations.json").write_text("not-json")
     assert sessions_mod._antigravity_sessions() == []
+
+
+def test_get_clis_returns_all_five_managed_clis_with_insecure_flags(client):
+    resp = client.get("/clis")
+    assert resp.status_code == 200
+    items = {c["type"]: c for c in resp.json()}
+    assert set(items.keys()) == {"claude", "codex", "copilot", "cursor", "antigravity"}
+    assert items["antigravity"]["command"] == "agy"
+    assert items["antigravity"]["insecure_flag"] == "--dangerously-skip-permissions"
+    assert items["antigravity"]["resume_flag"] == "--conversation"
+    assert items["antigravity"]["supports_insecure"] is True
+
+
+def test_build_command_route_supports_antigravity_and_claude(client):
+    resp = client.post("/build-command", json={
+        "type": "antigravity",
+        "resume_session_id": "conv-123",
+        "is_insecure": True,
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["command"] == "agy --conversation conv-123 --dangerously-skip-permissions"
+    assert body["session_id"] == "conv-123"
+    assert body["insecure"] is True
+
+    resp_secure = client.post("/build-command", json={
+        "type": "antigravity",
+        "resume_session_id": "conv-123",
+        "is_insecure": False,
+    })
+    assert resp_secure.json()["command"] == "agy --conversation conv-123"
+    assert resp_secure.json()["insecure"] is False
+
+
+def test_clis_command_helpers_toggle_and_extract_session_id():
+    cmd = clis_mod.set_command_insecure("agy --conversation conv-1", "antigravity", True)
+    assert cmd == "agy --conversation conv-1 --dangerously-skip-permissions"
+    assert clis_mod.is_insecure_command(cmd, "antigravity") is True
+    assert clis_mod.extract_agent_session_id(cmd) == "conv-1"
+
+    secure = clis_mod.set_command_insecure(cmd, "antigravity", False)
+    assert secure == "agy --conversation conv-1"
+    assert clis_mod.is_insecure_command(secure, "antigravity") is False
