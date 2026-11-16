@@ -138,7 +138,7 @@ _TABLE_DDL = """
     PRIMARY KEY (session_id, type)
 """
 
-AGENT_TYPES = ("claude", "codex", "copilot", "cursor", "antigravity")
+AGENT_TYPES = ("claude", "codex", "copilot", "cursor", "antigravity", "opencode")
 
 
 def _claude_sessions() -> list[dict]:
@@ -355,12 +355,44 @@ def _antigravity_sessions() -> list[dict]:
     return out
 
 
+def _opencode_sessions() -> list[dict]:
+    """OpenCode keeps every session in a SQLite database
+    (``$XDG_DATA_HOME/opencode/opencode.db``, default
+    ``~/.local/share/opencode/opencode.db``) whose ``session`` table carries
+    the id, title and epoch-millisecond ``time_created``/``time_updated``.
+    Resume via ``opencode --session <id>``.
+
+    Child sessions (``parent_id`` set — spawned by subagents) and archived
+    sessions are not user conversations, so they stay out of the picker.
+    """
+    data_home = os.environ.get("XDG_DATA_HOME") or os.path.join(
+        os.path.expanduser("~"), ".local", "share",
+    )
+    db_path = os.path.join(data_home, "opencode", "opencode.db")
+    rows = _sqlite_rows(db_path, "SELECT * FROM session")
+    out = []
+    for row in rows:
+        keys = row.keys()
+        if ("parent_id" in keys and row["parent_id"]) or (
+            "time_archived" in keys and row["time_archived"]
+        ):
+            continue
+        out.append({
+            "session_id": row["id"],
+            "name": row["title"] if "title" in keys and row["title"] else None,
+            "created_at": (row["time_created"] or 0) / 1000.0,
+            "updated_at": (row["time_updated"] or 0) / 1000.0,
+        })
+    return out
+
+
 _DISCOVER = {
     "claude": _claude_sessions,
     "codex": _codex_sessions,
     "copilot": _copilot_sessions,
     "cursor": _cursor_sessions,
     "antigravity": _antigravity_sessions,
+    "opencode": _opencode_sessions,
 }
 
 

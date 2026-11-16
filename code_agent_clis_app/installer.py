@@ -1,7 +1,7 @@
 """
-Install/uninstall logic for the five coding-agent CLIs this app installs:
+Install/uninstall logic for the six coding-agent CLIs this app installs:
 Claude Code (claude), OpenAI Codex (codex), GitHub Copilot CLI (copilot),
-Cursor's cursor-agent, and Google Antigravity CLI (agy). Invoked directly by tests/test_installer.py
+Cursor's cursor-agent, Google Antigravity CLI (agy), and OpenCode (opencode). Invoked directly by tests/test_installer.py
 (subprocess mocked) and tests/standalone_test.sh (real, out-of-framework).
 CodeAgentClisAppPlugin's activate() goes through
 ctx.commands.install_system_cli() instead (the gated/journaled framework
@@ -59,6 +59,10 @@ def install_antigravity() -> str:
     return _run_script("install_antigravity.sh")
 
 
+def install_opencode() -> str:
+    return _run_script("install_opencode.sh")
+
+
 def install_all() -> dict[str, str]:
     return {
         "claude": install_claude(),
@@ -66,6 +70,7 @@ def install_all() -> dict[str, str]:
         "copilot": install_copilot(),
         "cursor-agent": install_cursor_agent(),
         "agy": install_antigravity(),
+        "opencode": install_opencode(),
     }
 
 

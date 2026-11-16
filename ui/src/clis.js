@@ -16,6 +16,20 @@ export const ANTIGRAVITY_AGENT = {
   defaultInsecureOnCreate: false,
 };
 
+export const OPENCODE_AGENT = {
+  type: 'opencode',
+  label: 'OpenCode',
+  command: 'opencode',
+  color: '#14b8a6',
+  icon: 'opencode',
+  insecureFlag: '--auto',
+  supportsInsecure: true,
+  resumeFlag: '--session',
+  resumeSubcommand: null,
+  supportsSessionId: false,
+  defaultInsecureOnCreate: false,
+};
+
 export const AGENT_CLIS = [
   {
     type: 'claude',
@@ -70,6 +84,7 @@ export const AGENT_CLIS = [
     defaultInsecureOnCreate: false,
   },
   ANTIGRAVITY_AGENT,
+  OPENCODE_AGENT,
 ];
 
 const CLI_MAP = new Map(AGENT_CLIS.map((cli) => [cli.type, cli]));
@@ -85,8 +100,11 @@ export function withManagedAgentClis(configuredAgents = []) {
       const managed = CLI_MAP.get(a.type);
       return managed ? { ...managed, ...a } : a;
     });
-  if (!result.some((a) => a.type === ANTIGRAVITY_AGENT.type)) {
-    result.push({ ...ANTIGRAVITY_AGENT });
+  // Agents the core's configured list may not carry yet: always offer them.
+  for (const extra of [ANTIGRAVITY_AGENT, OPENCODE_AGENT]) {
+    if (!result.some((a) => a.type === extra.type)) {
+      result.push({ ...extra });
+    }
   }
   return result;
 }
@@ -113,6 +131,9 @@ export function getInsecureTooltip(agentType, insecure = false) {
   }
   if (agentType === 'antigravity') {
     return 'Click to enable insecure mode (--dangerously-skip-permissions)';
+  }
+  if (agentType === 'opencode') {
+    return 'Click to enable insecure mode (--auto — auto-approve permissions not explicitly denied)';
   }
   return 'Click to enable insecure mode (skip all permission checks)';
 }

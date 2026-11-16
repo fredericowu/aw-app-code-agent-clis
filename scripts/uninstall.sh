@@ -24,7 +24,10 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
   nvm use default >/dev/null 2>&1 || true
   npm uninstall -g @anthropic-ai/claude-code @openai/codex @github/copilot >/dev/null 2>&1 || true
 fi
-rm -f "$AW_BIN_DIR"/{claude,codex,copilot}
+rm -f "$AW_BIN_DIR"/{claude,codex,copilot,opencode}
+
+# Keep OpenCode's config and session DB; remove only the installed binary.
+rm -f "$HOME/.opencode/bin/opencode"
 
 # cursor-agent — vendor installer, own $HOME sandbox dir under the
 # workspace's persistent home.

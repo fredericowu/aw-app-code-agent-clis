@@ -1,6 +1,6 @@
 ---
 name: aw-code-agent-clis
-description: Product behaviour and gotchas of the coding-agent CLIs this app installs (claude, codex, copilot, cursor-agent, agy). First covers the Codex CLI's silent --model fallback — codex --model <value> not resolving, a model alias that doesn't seem to take effect, or needing to verify which model actually ran a Codex-backed session. Use whenever configuring or debugging a Codex-backed agent's model selection, or picking between these CLIs' behaviour in general.
+description: Product behaviour and gotchas of the coding-agent CLIs this app installs (claude, codex, copilot, cursor-agent, agy, opencode). First covers the Codex CLI's silent --model fallback — codex --model <value> not resolving, a model alias that doesn't seem to take effect, or needing to verify which model actually ran a Codex-backed session. Use whenever configuring or debugging a Codex-backed agent's model selection, or picking between these CLIs' behaviour in general.
 ---
 
 # aw-code-agent-clis — CLI product knowledge

@@ -1,11 +1,11 @@
-function ye({ apiUrl: e, fetchImpl: r = fetch }) {
-  async function d() {
+function xe({ apiUrl: e, fetchImpl: r = fetch }) {
+  async function c() {
     const o = await r(e("/clis"));
     if (!o.ok) throw new Error(`GET /clis -> ${o.status}`);
     const i = await o.json();
     return Array.isArray(i) ? i : [];
   }
-  async function E(o) {
+  async function _(o) {
     const i = await r(e("/build-command"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -15,11 +15,11 @@ function ye({ apiUrl: e, fetchImpl: r = fetch }) {
     return i.json();
   }
   async function m(o, { limit: i, before: y } = {}) {
-    let $ = `type=${encodeURIComponent(o)}`;
-    i != null && ($ += `&limit=${encodeURIComponent(i)}`), y != null && ($ += `&before=${encodeURIComponent(y)}`);
-    const I = await r(e(`/agent-sessions?${$}`));
-    if (!I.ok) throw new Error(`GET /agent-sessions -> ${I.status}`);
-    const p = await I.json();
+    let I = `type=${encodeURIComponent(o)}`;
+    i != null && (I += `&limit=${encodeURIComponent(i)}`), y != null && (I += `&before=${encodeURIComponent(y)}`);
+    const M = await r(e(`/agent-sessions?${I}`));
+    if (!M.ok) throw new Error(`GET /agent-sessions -> ${M.status}`);
+    const p = await M.json();
     return i == null ? Array.isArray(p) ? p : [] : {
       sessions: Array.isArray(p == null ? void 0 : p.sessions) ? p.sessions : [],
       total: typeof (p == null ? void 0 : p.total) == "number" ? p.total : 0,
@@ -27,15 +27,15 @@ function ye({ apiUrl: e, fetchImpl: r = fetch }) {
     };
   }
   async function N(o, i, { restore: y = !1 } = {}) {
-    const $ = `type=${encodeURIComponent(o)}${y ? "&restore=1" : ""}`, I = await r(e(`/agent-sessions/${encodeURIComponent(i)}?${$}`), {
+    const I = `type=${encodeURIComponent(o)}${y ? "&restore=1" : ""}`, M = await r(e(`/agent-sessions/${encodeURIComponent(i)}?${I}`), {
       method: "DELETE"
     });
-    if (!I.ok) throw new Error(`DELETE /agent-sessions/${i} -> ${I.status}`);
-    return I.json();
+    if (!M.ok) throw new Error(`DELETE /agent-sessions/${i} -> ${M.status}`);
+    return M.json();
   }
-  return { listClis: d, buildCommand: E, listSessions: m, hideSession: N };
+  return { listClis: c, buildCommand: _, listSessions: m, hideSession: N };
 }
-const Y = {
+const te = {
   type: "antigravity",
   label: "Antigravity",
   command: "agy",
@@ -47,7 +47,19 @@ const Y = {
   resumeSubcommand: null,
   supportsSessionId: !1,
   defaultInsecureOnCreate: !1
-}, ce = [
+}, ne = {
+  type: "opencode",
+  label: "OpenCode",
+  command: "opencode",
+  color: "#14b8a6",
+  icon: "opencode",
+  insecureFlag: "--auto",
+  supportsInsecure: !0,
+  resumeFlag: "--session",
+  resumeSubcommand: null,
+  supportsSessionId: !1,
+  defaultInsecureOnCreate: !1
+}, ue = [
   {
     type: "claude",
     label: "Claude",
@@ -100,59 +112,62 @@ const Y = {
     supportsSessionId: !1,
     defaultInsecureOnCreate: !1
   },
-  Y
-], ue = new Map(ce.map((e) => [e.type, e]));
-function z(e) {
-  return ue.get(e) || null;
+  te,
+  ne
+], de = new Map(ue.map((e) => [e.type, e]));
+function D(e) {
+  return de.get(e) || null;
 }
-function ie(e = []) {
-  const r = (e || []).filter((d) => d && d.type && d.type !== "terminal").map((d) => {
-    const E = ue.get(d.type);
-    return E ? { ...E, ...d } : d;
+function ae(e = []) {
+  const r = (e || []).filter((c) => c && c.type && c.type !== "terminal").map((c) => {
+    const _ = de.get(c.type);
+    return _ ? { ..._, ...c } : c;
   });
-  return r.some((d) => d.type === Y.type) || r.push({ ...Y }), r;
+  for (const c of [te, ne])
+    r.some((_) => _.type === c.type) || r.push({ ...c });
+  return r;
 }
 function we(e) {
   if (e === "gemini") return !0;
-  const r = z(e);
+  const r = D(e);
   return !!(r && r.supportsInsecure && r.insecureFlag);
 }
-function xe(e, r = !1) {
-  return r ? "Insecure mode ON — click to disable" : e === "codex" ? "Click to enable insecure mode (--dangerously-bypass-approvals-and-sandbox)" : e === "gemini" ? "Click to enable insecure mode (--yolo — auto-approve all tools)" : e === "cursor" ? "Click to enable insecure mode (--approve-mcps --yolo)" : e === "copilot" ? "Click to enable insecure mode (--allow-all)" : e === "antigravity" ? "Click to enable insecure mode (--dangerously-skip-permissions)" : "Click to enable insecure mode (skip all permission checks)";
+function ve(e, r = !1) {
+  return r ? "Insecure mode ON — click to disable" : e === "codex" ? "Click to enable insecure mode (--dangerously-bypass-approvals-and-sandbox)" : e === "gemini" ? "Click to enable insecure mode (--yolo — auto-approve all tools)" : e === "cursor" ? "Click to enable insecure mode (--approve-mcps --yolo)" : e === "copilot" ? "Click to enable insecure mode (--allow-all)" : e === "antigravity" ? "Click to enable insecure mode (--dangerously-skip-permissions)" : e === "opencode" ? "Click to enable insecure mode (--auto — auto-approve permissions not explicitly denied)" : "Click to enable insecure mode (skip all permission checks)";
 }
-function ae() {
+function le() {
   return typeof crypto < "u" && typeof crypto.randomUUID == "function" ? crypto.randomUUID() : `sess-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 }
-function te(e, r = null, d = !1, E = null, m = null, N = null) {
+function ee(e, r = null, c = !1, _ = null, m = null, N = null) {
   if (e === "gemini") {
     let y = "gemini";
     if (r)
       y += ` --resume ${r}`;
     else {
-      const $ = m || ae();
-      y += ` --session-id ${$}`;
+      const I = m || le();
+      y += ` --session-id ${I}`;
     }
-    return d && (y += " --yolo"), y;
+    return c && (y += " --yolo"), y;
   }
-  const o = z(e);
+  const o = D(e);
   if (!o)
     return N || e;
   let i = N || o.command;
   if (r)
     o.resumeSubcommand ? i += ` ${o.resumeSubcommand} ${r}` : o.resumeFlag && (i += ` ${o.resumeFlag} ${r}`);
   else if (o.supportsSessionId) {
-    const y = m || ae();
+    const y = m || le();
     i += ` --session-id ${y}`;
   }
-  return d && o.insecureFlag && (i += ` ${o.insecureFlag}`), i;
+  return c && o.insecureFlag && (i += ` ${o.insecureFlag}`), i;
 }
-const ve = "code-agent-clis", be = /* @__PURE__ */ new Set(["claude", "codex", "copilot", "cursor", "antigravity"]), le = 50;
-function Ce(e) {
-  const r = ye({
+const be = "code-agent-clis", Ce = /* @__PURE__ */ new Set(["claude", "codex", "copilot", "cursor", "antigravity", "opencode"]), ce = 50;
+function ke(e) {
+  const r = xe({
     apiUrl: e.app.apiUrl,
     fetchImpl: e.sdk.api.fetch
   });
-  function d() {
+  function c() {
     return typeof window < "u" && window.__awTerminal ? window.__awTerminal : {
       async createTerminal(t) {
         return (await e.sdk.api.fetch("/api/terminals", {
@@ -173,31 +188,32 @@ function Ce(e) {
       }
     };
   }
-  async function E(t, a = null, f = null, b = {}) {
-    var c;
-    const l = (b.aiAgents || []).find((T) => T.type === t) || z(t) || (t === "antigravity" ? { label: "Antigravity", command: "agy" } : null), w = (l == null ? void 0 : l.label) || t, g = typeof crypto < "u" && crypto.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}`;
-    let x, v;
+  async function _(t, a = null, f = null, b = {}) {
+    var u;
+    const l = (b.aiAgents || []).find((T) => T.type === t) || D(t) || (t === "antigravity" ? { label: "Antigravity", command: "agy" } : null), x = (l == null ? void 0 : l.label) || t, g = typeof crypto < "u" && crypto.randomUUID ? crypto.randomUUID() : `sess-${Date.now()}`;
+    let w, v;
     if (a)
-      x = f ? f.length > 60 ? f.slice(0, 57) + "…" : f : w, v = te(t, a, !!b.isInsecure, x, null, l == null ? void 0 : l.command);
+      w = f ? f.length > 60 ? f.slice(0, 57) + "…" : f : x, v = ee(t, a, !!b.isInsecure, w, null, l == null ? void 0 : l.command);
     else {
-      x = `${w} - ${g.slice(-4)}`;
-      const T = b.isInsecure !== void 0 ? !!b.isInsecure : !!((c = z(t)) != null && c.defaultInsecureOnCreate);
-      v = te(t, null, T, x, g, l == null ? void 0 : l.command);
+      w = `${x} - ${g.slice(-4)}`;
+      const T = b.isInsecure !== void 0 ? !!b.isInsecure : !!((u = D(t)) != null && u.defaultInsecureOnCreate);
+      v = ee(t, null, T, w, g, l == null ? void 0 : l.command);
     }
-    const R = d(), M = await R.createTerminal({ name: x, command: v, type: t });
-    return M != null && M.id && b.openWindow !== !1 && R.openTerminal(M.id), { ...M, name: x, command: v, agentSessionId: a || g };
+    const L = c(), O = await L.createTerminal({ name: w, command: v, type: t });
+    return O != null && O.id && b.openWindow !== !1 && L.openTerminal(O.id), { ...O, name: w, command: v, agentSessionId: a || g };
   }
   if (typeof window < "u") {
     const t = {
-      slug: ve,
-      clis: ce,
-      antigravityAgent: Y,
-      getCli: z,
-      withManagedAgentClis: ie,
+      slug: be,
+      clis: ue,
+      antigravityAgent: te,
+      opencodeAgent: ne,
+      getCli: D,
+      withManagedAgentClis: ae,
       supportsInsecureMode: we,
-      getInsecureTooltip: xe,
-      buildAgentCommand: te,
-      launchAgentTerminal: E,
+      getInsecureTooltip: ve,
+      buildAgentCommand: ee,
+      launchAgentTerminal: _,
       listClis: r.listClis,
       buildCommandRemote: r.buildCommand,
       listSessions: r.listSessions,
@@ -207,15 +223,16 @@ function Ce(e) {
       window.__awCodeAgentClis === t && delete window.__awCodeAgentClis;
     });
   }
-  const { useState: m, useRef: N, useCallback: o, useEffect: i } = e.React, { createPortal: y } = e.ReactDOM, $ = {
+  const { useState: m, useRef: N, useCallback: o, useEffect: i } = e.React, { createPortal: y } = e.ReactDOM, I = {
     bolt: (t) => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "currentColor", style: { color: t } }, /* @__PURE__ */ e.h("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z" })),
     copilot: (t) => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "currentColor", style: { color: t } }, /* @__PURE__ */ e.h("path", { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" })),
     cursor: (t) => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "currentColor", style: { color: t } }, /* @__PURE__ */ e.h("path", { d: "M4 0l16 12.279-6.985 1.205 2.854 10.516L4 0z" })),
     codex: (t) => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", style: { color: t } }, /* @__PURE__ */ e.h("path", { d: "M12 3l7.5 4.25v8.5L12 20l-7.5-4.25v-8.5L12 3z" }), /* @__PURE__ */ e.h("path", { d: "M8.5 9.5L12 7.5l3.5 2v5L12 16.5l-3.5-2v-5z" })),
+    opencode: (t) => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", style: { color: t } }, /* @__PURE__ */ e.h("path", { d: "M8 7l-5 5 5 5" }), /* @__PURE__ */ e.h("path", { d: "M16 7l5 5-5 5" })),
     antigravity: () => /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 shrink-0", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ e.h("path", { d: "M12 2.5c.7 5.3 4.2 8.8 9.5 9.5-5.3.7-8.8 4.2-9.5 9.5-.7-5.3-4.2-8.8-9.5-9.5 5.3-.7 8.8-4.2 9.5-9.5Z", fill: "#4285F4" }), /* @__PURE__ */ e.h("path", { d: "M12 2.5c.7 5.3 4.2 8.8 9.5 9.5H12V2.5Z", fill: "#34A853" }), /* @__PURE__ */ e.h("path", { d: "M12 12h9.5c-5.3.7-8.8 4.2-9.5 9.5V12Z", fill: "#FBBC04" }), /* @__PURE__ */ e.h("path", { d: "M2.5 12H12v9.5c-.7-5.3-4.2-8.8-9.5-9.5Z", fill: "#EA4335" }))
   };
-  function I({ iconName: t, color: a }) {
-    const f = $[t];
+  function M({ iconName: t, color: a }) {
+    const f = I[t];
     return f ? f(a) : /* @__PURE__ */ e.h(
       "span",
       {
@@ -230,85 +247,85 @@ function Ce(e) {
     runningAgentSessionMap: a,
     liveAgentSessions: f,
     onLaunch: b,
-    onResume: D,
+    onResume: z,
     onOpenRunningAgentSession: l,
-    onFlyoutEnter: w,
+    onFlyoutEnter: x,
     onFlyoutLeave: g
   }) {
-    const [x, v] = m(!1), [R, M] = m({ top: 0, left: 0 }), [c, T] = m(null), [j, P] = m(0), [L, H] = m(!1), [O, W] = m(!1), [s, h] = m(!1), [_, G] = m(null), ne = N(null), q = N(null), Z = N(!1), V = be.has(t.key), oe = o(() => {
-      Z.current || (Z.current = !0, w == null || w());
-    }, [w]), U = o(() => {
+    const [w, v] = m(!1), [L, O] = m({ top: 0, left: 0 }), [u, T] = m(null), [j, P] = m(0), [R, H] = m(!1), [E, W] = m(!1), [s, h] = m(!1), [S, G] = m(null), oe = N(null), Y = N(null), Z = N(!1), V = Ce.has(t.key), re = o(() => {
+      Z.current || (Z.current = !0, x == null || x());
+    }, [x]), U = o(() => {
       Z.current && (Z.current = !1, g == null || g());
     }, [g]), F = o(() => {
-      clearTimeout(q.current);
-    }, []), re = o(() => {
-      F(), q.current = setTimeout(() => {
+      clearTimeout(Y.current);
+    }, []), se = o(() => {
+      F(), Y.current = setTimeout(() => {
         v(!1), U();
       }, 150);
     }, [F, U]);
     i(() => () => {
-      clearTimeout(q.current), U();
+      clearTimeout(Y.current), U();
     }, [U]);
     const J = o(() => {
       F(), v(!1), U();
-    }, [F, U]), pe = o(() => {
-      var u;
+    }, [F, U]), me = o(() => {
+      var d;
       if (!V) return;
       F();
-      const n = (u = ne.current) == null ? void 0 : u.getBoundingClientRect();
-      n && M({ top: n.top, left: n.right + 4 }), v(!0), oe(), s || (h(!0), G(null), r.listSessions(t.key, { limit: le }).then(({ sessions: C, total: A, hasMore: k }) => {
+      const n = (d = oe.current) == null ? void 0 : d.getBoundingClientRect();
+      n && O({ top: n.top, left: n.right + 4 }), v(!0), re(), s || (h(!0), G(null), r.listSessions(t.key, { limit: ce }).then(({ sessions: C, total: A, hasMore: k }) => {
         T(C), P(A), H(k);
       }).catch((C) => G(C.message || "Failed to load")).finally(() => h(!1)));
-    }, [V, F, oe, s]), K = o(() => {
-      if (O || !L || !c || c.length === 0) return;
+    }, [V, F, re, s]), q = o(() => {
+      if (E || !R || !u || u.length === 0) return;
       W(!0);
-      const n = c[c.length - 1].updated_at;
-      r.listSessions(t.key, { limit: le, before: n }).then(({ sessions: u, total: C, hasMore: A }) => {
+      const n = u[u.length - 1].updated_at;
+      r.listSessions(t.key, { limit: ce, before: n }).then(({ sessions: d, total: C, hasMore: A }) => {
         T((k) => {
-          const B = new Set((k || []).map((S) => S.session_id));
-          return [...k || [], ...u.filter((S) => !B.has(S.session_id))];
+          const B = new Set((k || []).map(($) => $.session_id));
+          return [...k || [], ...d.filter(($) => !B.has($.session_id))];
         }), P(C), H(A);
       }).catch(() => {
       }).finally(() => W(!1));
-    }, [O, L, c, t.key]), me = o((n) => {
-      if (!L || O) return;
-      const u = n.currentTarget;
-      u.scrollHeight - u.scrollTop - u.clientHeight < 120 && K();
-    }, [L, O, K]), fe = new Set((c || []).map((n) => n.session_id)), se = (f || []).filter(
-      (n) => n.type === t.key && n.alive && (!n.agent_session_id || !fe.has(n.agent_session_id))
-    ), ge = [...c || []].sort((n, u) => {
-      const C = !!a[`${t.key}:${n.session_id}`], A = !!a[`${t.key}:${u.session_id}`];
+    }, [E, R, u, t.key]), fe = o((n) => {
+      if (!R || E) return;
+      const d = n.currentTarget;
+      d.scrollHeight - d.scrollTop - d.clientHeight < 120 && q();
+    }, [R, E, q]), ge = new Set((u || []).map((n) => n.session_id)), ie = (f || []).filter(
+      (n) => n.type === t.key && n.alive && (!n.agent_session_id || !ge.has(n.agent_session_id))
+    ), he = [...u || []].sort((n, d) => {
+      const C = !!a[`${t.key}:${n.session_id}`], A = !!a[`${t.key}:${d.session_id}`];
       if (C !== A) return C ? -1 : 1;
-      const k = (n.updated_at || n.created_at || 0) * 1e3, B = (u.updated_at || u.created_at || 0) * 1e3;
+      const k = (n.updated_at || n.created_at || 0) * 1e3, B = (d.updated_at || d.created_at || 0) * 1e3;
       if (k !== B) return B - k;
-      const S = (n.name || "(untitled)").toLowerCase(), Q = (u.name || "(untitled)").toLowerCase();
-      return S.localeCompare(Q);
+      const $ = (n.name || "(untitled)").toLowerCase(), K = (d.name || "(untitled)").toLowerCase();
+      return $.localeCompare(K);
     });
     return /* @__PURE__ */ e.h(e.React.Fragment, null, /* @__PURE__ */ e.h(
       "button",
       {
-        ref: ne,
-        onMouseEnter: pe,
-        onMouseLeave: re,
+        ref: oe,
+        onMouseEnter: me,
+        onMouseLeave: se,
         onClick: (n) => {
           n.stopPropagation(), J(), b();
         },
         className: "w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.06] cursor-pointer text-left"
       },
-      /* @__PURE__ */ e.h(I, { iconName: t.icon, color: t.color }),
+      /* @__PURE__ */ e.h(M, { iconName: t.icon, color: t.color }),
       /* @__PURE__ */ e.h("span", { className: "flex-1 text-[13px] text-[var(--color-text-primary)]" }, t.label),
       V ? /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 text-[var(--color-text-muted)] opacity-60", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" }, /* @__PURE__ */ e.h("path", { d: "M9 6l6 6-6 6" })) : /* @__PURE__ */ e.h("svg", { className: "w-3 h-3 text-[var(--color-accent)] opacity-60", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" }, /* @__PURE__ */ e.h("path", { d: "M12 5v14M5 12h14" }))
-    ), x && V && y(
+    ), w && V && y(
       /* @__PURE__ */ e.h(
         "div",
         {
           onMouseEnter: F,
-          onMouseLeave: re,
-          onScroll: me,
+          onMouseLeave: se,
+          onScroll: fe,
           className: "fixed bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-2xl shadow-black/60",
           style: {
-            top: R.top - 5,
-            left: R.left,
+            top: L.top - 5,
+            left: L.left,
             zIndex: 99999,
             width: 320,
             maxHeight: "70vh",
@@ -330,9 +347,9 @@ function Ce(e) {
           /* @__PURE__ */ e.h("span", { className: "ml-auto text-[10px] text-[var(--color-text-muted)]" }, j)
         ),
         s && /* @__PURE__ */ e.h("div", { className: "px-3 py-3 text-xs text-[var(--color-text-muted)]" }, "Loading…"),
-        _ && !s && /* @__PURE__ */ e.h("div", { className: "px-3 py-3 text-xs text-[var(--color-danger)]" }, "Failed to load: ", _),
-        !s && !_ && c && c.length === 0 && se.length === 0 && /* @__PURE__ */ e.h("div", { className: "px-3 py-3 text-xs text-[var(--color-text-muted)]" }, "No previous sessions for this project."),
-        se.map((n) => /* @__PURE__ */ e.h(
+        S && !s && /* @__PURE__ */ e.h("div", { className: "px-3 py-3 text-xs text-[var(--color-danger)]" }, "Failed to load: ", S),
+        !s && !S && u && u.length === 0 && ie.length === 0 && /* @__PURE__ */ e.h("div", { className: "px-3 py-3 text-xs text-[var(--color-text-muted)]" }, "No previous sessions for this project."),
+        ie.map((n) => /* @__PURE__ */ e.h(
           "div",
           {
             key: n.id,
@@ -341,8 +358,8 @@ function Ce(e) {
           /* @__PURE__ */ e.h(
             "button",
             {
-              onClick: (u) => {
-                u.stopPropagation(), J(), l(n.id);
+              onClick: (d) => {
+                d.stopPropagation(), J(), l(n.id);
               },
               className: "w-full text-left px-3 py-2 pr-9",
               title: `Open running session "${n.name}" (session ID not yet detected)`
@@ -351,13 +368,13 @@ function Ce(e) {
             /* @__PURE__ */ e.h("div", { className: "text-[10px] text-[var(--color-text-muted)] mt-0.5" }, "starting…")
           )
         )),
-        !s && !_ && c && ge.map((n) => {
-          const u = n.session_id ? `${n.session_id.slice(0, 8)}-${n.session_id.slice(9, 13)}…` : "", C = n.name || u || "(untitled)";
+        !s && !S && u && he.map((n) => {
+          const d = n.session_id ? `${n.session_id.slice(0, 8)}-${n.session_id.slice(9, 13)}…` : "", C = n.name || d || "(untitled)";
           let A = "";
           const k = n.updated_at ? new Date(n.updated_at * 1e3) : n.created_at ? new Date(n.created_at * 1e3) : null;
           k && !isNaN(k) && (A = `${k.toLocaleDateString()} ${k.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
-          const B = [u, A].filter(Boolean).join(" · "), S = a[`${t.key}:${n.session_id}`], Q = (X) => {
-            X.stopPropagation(), T((ee) => (ee || []).filter((he) => he.session_id !== n.session_id)), P((ee) => Math.max(0, ee - 1)), r.hideSession(t.key, n.session_id).catch(() => {
+          const B = [d, A].filter(Boolean).join(" · "), $ = a[`${t.key}:${n.session_id}`], K = (Q) => {
+            Q.stopPropagation(), T((X) => (X || []).filter((ye) => ye.session_id !== n.session_id)), P((X) => Math.max(0, X - 1)), r.hideSession(t.key, n.session_id).catch(() => {
             });
           };
           return /* @__PURE__ */ e.h(
@@ -369,19 +386,19 @@ function Ce(e) {
             /* @__PURE__ */ e.h(
               "button",
               {
-                onClick: (X) => {
-                  X.stopPropagation(), J(), S ? l(S) : D(t.key, n.session_id, C);
+                onClick: (Q) => {
+                  Q.stopPropagation(), J(), $ ? l($) : z(t.key, n.session_id, C);
                 },
                 className: "w-full text-left px-3 py-2 pr-9",
-                title: `${S ? "Open" : "Resume"} "${C}" (${n.session_id})`
+                title: `${$ ? "Open" : "Resume"} "${C}" (${n.session_id})`
               },
-              /* @__PURE__ */ e.h("div", { className: "text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2" }, S && /* @__PURE__ */ e.h("span", { className: "w-2 h-2 rounded-full bg-emerald-400 shrink-0" }), /* @__PURE__ */ e.h("span", { className: "truncate" }, C)),
+              /* @__PURE__ */ e.h("div", { className: "text-xs font-medium text-[var(--color-text-primary)] truncate flex items-center gap-2" }, $ && /* @__PURE__ */ e.h("span", { className: "w-2 h-2 rounded-full bg-emerald-400 shrink-0" }), /* @__PURE__ */ e.h("span", { className: "truncate" }, C)),
               /* @__PURE__ */ e.h("div", { className: "text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate" }, B)
             ),
             /* @__PURE__ */ e.h(
               "button",
               {
-                onClick: Q,
+                onClick: K,
                 className: "absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-[var(--color-danger)]/20 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-opacity cursor-pointer",
                 title: "Hide from picker (transcript kept on disk)"
               },
@@ -389,74 +406,74 @@ function Ce(e) {
             )
           );
         }),
-        !s && !_ && L && /* @__PURE__ */ e.h(
+        !s && !S && R && /* @__PURE__ */ e.h(
           "button",
           {
             onClick: (n) => {
-              n.stopPropagation(), K();
+              n.stopPropagation(), q();
             },
-            disabled: O,
+            disabled: E,
             className: "w-full text-left px-3 py-2 text-xs text-[var(--color-text-muted)] hover:bg-white/5 disabled:opacity-60"
           },
-          O ? "Loading…" : `Load more (${Math.max(0, j - ((c == null ? void 0 : c.length) || 0))} remaining)`
+          E ? "Loading…" : `Load more (${Math.max(0, j - ((u == null ? void 0 : u.length) || 0))} remaining)`
         )
       ),
       document.body
     ));
   }
-  function de({
+  function pe({
     aiAgents: t,
     agentSessions: a,
     onCreateAgent: f,
     onToggleAgent: b
   }) {
-    const [D, l] = m(!1), w = N(null), g = N(0), x = N(!1), v = o(() => {
-      clearTimeout(w.current), w.current = setTimeout(() => {
-        !x.current && g.current === 0 && l(!1);
+    const [z, l] = m(!1), x = N(null), g = N(0), w = N(!1), v = o(() => {
+      clearTimeout(x.current), x.current = setTimeout(() => {
+        !w.current && g.current === 0 && l(!1);
       }, 150);
-    }, []), R = o(() => {
-      x.current = !0, clearTimeout(w.current), l(!0);
-    }, []), M = o(() => {
-      x.current = !1, v();
-    }, [v]), c = o(() => {
-      g.current += 1, clearTimeout(w.current);
+    }, []), L = o(() => {
+      w.current = !0, clearTimeout(x.current), l(!0);
+    }, []), O = o(() => {
+      w.current = !1, v();
+    }, [v]), u = o(() => {
+      g.current += 1, clearTimeout(x.current);
     }, []), T = o(() => {
-      g.current = Math.max(0, g.current - 1), g.current === 0 && !x.current && v();
+      g.current = Math.max(0, g.current - 1), g.current === 0 && !w.current && v();
     }, [v]);
-    i(() => () => clearTimeout(w.current), []);
-    const j = (a == null ? void 0 : a.length) || 0, P = o((s, h = null, _ = null) => {
+    i(() => () => clearTimeout(x.current), []);
+    const j = (a == null ? void 0 : a.length) || 0, P = o((s, h = null, S = null) => {
       if (typeof f == "function") {
-        f(s, h, _);
+        f(s, h, S);
         return;
       }
-      E(s, h, _, { aiAgents: t }).catch(() => {
+      _(s, h, S, { aiAgents: t }).catch(() => {
       });
-    }, [f, t]), L = o((s) => {
+    }, [f, t]), R = o((s) => {
       if (typeof b == "function") {
         b(s);
         return;
       }
-      d().openTerminal(s);
-    }, [b]), H = ie(t || []).map((h) => ({
+      c().openTerminal(s);
+    }, [b]), H = ae(t || []).map((h) => ({
       key: h.type,
       label: h.label || h.type,
       icon: h.icon,
       color: h.color,
       action: () => P(h.type)
-    })), O = {};
+    })), E = {};
     (a || []).forEach((s) => {
-      s.type && s.agent_session_id && (O[`${s.type}:${s.agent_session_id}`] = s.id);
+      s.type && s.agent_session_id && (E[`${s.type}:${s.agent_session_id}`] = s.id);
     });
     const W = {
-      runningAgentSessionMap: O,
+      runningAgentSessionMap: E,
       liveAgentSessions: a,
       onOpenRunningAgentSession: (s) => {
-        l(!1), L(s);
+        l(!1), R(s);
       },
-      onFlyoutEnter: c,
+      onFlyoutEnter: u,
       onFlyoutLeave: T
     };
-    return /* @__PURE__ */ e.h("div", { className: "relative", onMouseEnter: R, onMouseLeave: M }, /* @__PURE__ */ e.h(
+    return /* @__PURE__ */ e.h("div", { className: "relative", onMouseEnter: L, onMouseLeave: O }, /* @__PURE__ */ e.h(
       "button",
       {
         onClick: () => l((s) => !s),
@@ -464,7 +481,7 @@ function Ce(e) {
       },
       "Agents",
       j > 0 && /* @__PURE__ */ e.h("span", { className: "ml-1.5 inline-flex items-center justify-center min-w-[16px] h-[16px] rounded-full text-[9px] font-bold px-1 bg-[var(--color-accent)]/20 text-[var(--color-accent)]" }, j)
-    ), D && /* @__PURE__ */ e.h(
+    ), z && /* @__PURE__ */ e.h(
       "div",
       {
         className: "absolute left-0 top-full mt-2 z-50 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-2xl p-2",
@@ -478,17 +495,17 @@ function Ce(e) {
           onLaunch: () => {
             l(!1), s.action();
           },
-          onResume: (h, _, G) => {
-            l(!1), P(h, _, G);
+          onResume: (h, S, G) => {
+            l(!1), P(h, S, G);
           },
           ...W
         }
       ))
     ));
   }
-  e.registerSlot("core.nav", de);
+  e.registerSlot("core.nav", pe);
 }
 export {
-  Ce as default,
-  Ce as register
+  ke as default,
+  ke as register
 };

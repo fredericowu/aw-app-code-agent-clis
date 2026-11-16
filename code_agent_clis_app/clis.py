@@ -76,6 +76,19 @@ CLI_DEFINITIONS: tuple[dict, ...] = (
         "supports_session_id": False,
         "default_insecure_on_create": False,
     },
+    {
+        "type": "opencode",
+        "label": "OpenCode",
+        "command": "opencode",
+        "color": "#14b8a6",
+        "icon": "opencode",
+        "insecure_flag": "--auto",
+        "supports_insecure": True,
+        "resume_flag": "--session",
+        "resume_subcommand": None,
+        "supports_session_id": False,
+        "default_insecure_on_create": False,
+    },
 )
 
 _CLI_BY_TYPE: dict[str, dict] = {cli["type"]: cli for cli in CLI_DEFINITIONS}
@@ -128,7 +141,7 @@ def extract_resume_argument(command: str | None) -> str | None:
     except ValueError:
         parts = command.split()
     for i, part in enumerate(parts):
-        if part in ("--resume", "--conversation") and i + 1 < len(parts):
+        if part in ("--resume", "--conversation", "--session") and i + 1 < len(parts):
             return parts[i + 1]
         if part == "resume" and i > 0 and parts[i - 1] == "codex" and i + 1 < len(parts):
             return parts[i + 1]

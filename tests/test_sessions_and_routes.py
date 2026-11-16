@@ -314,15 +314,19 @@ def test_antigravity_invalid_or_missing_cache_is_empty(tmp_path, monkeypatch):
     assert sessions_mod._antigravity_sessions() == []
 
 
-def test_get_clis_returns_all_five_managed_clis_with_insecure_flags(client):
+def test_get_clis_returns_all_six_managed_clis_with_insecure_flags(client):
     resp = client.get("/clis")
     assert resp.status_code == 200
     items = {c["type"]: c for c in resp.json()}
-    assert set(items.keys()) == {"claude", "codex", "copilot", "cursor", "antigravity"}
+    assert set(items.keys()) == {"claude", "codex", "copilot", "cursor", "antigravity", "opencode"}
     assert items["antigravity"]["command"] == "agy"
     assert items["antigravity"]["insecure_flag"] == "--dangerously-skip-permissions"
     assert items["antigravity"]["resume_flag"] == "--conversation"
     assert items["antigravity"]["supports_insecure"] is True
+    assert items["opencode"]["command"] == "opencode"
+    assert items["opencode"]["insecure_flag"] == "--auto"
+    assert items["opencode"]["resume_flag"] == "--session"
+    assert items["opencode"]["supports_insecure"] is True
 
 
 def test_build_command_route_supports_antigravity_and_claude(client):
@@ -355,3 +359,59 @@ def test_clis_command_helpers_toggle_and_extract_session_id():
     secure = clis_mod.set_command_insecure(cmd, "antigravity", False)
     assert secure == "agy --conversation conv-1"
     assert clis_mod.is_insecure_command(secure, "antigravity") is False
+
+
+def _make_opencode_db(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE session (id text PRIMARY KEY, parent_id text, title text NOT NULL, "
+        "time_created integer NOT NULL, time_updated integer NOT NULL, time_archived integer)"
+    )
+    conn.executemany("INSERT INTO session VALUES (?,?,?,?,?,?)", rows)
+    conn.commit()
+    conn.close()
+
+
+def test_opencode_discovers_sessions_from_sqlite_skipping_children_and_archived(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    _make_opencode_db(tmp_path / "opencode" / "opencode.db", [
+        ("ses_top", None, "Fix the bug", 1_700_000_000_000, 1_700_000_500_000, None),
+        ("ses_child", "ses_top", "subagent run", 1_700_000_100_000, 1_700_000_200_000, None),
+        ("ses_archived", None, "old", 1_600_000_000_000, 1_600_000_000_000, 1_600_000_100_000),
+    ])
+    discovered = sessions_mod._opencode_sessions()
+    assert discovered == [{
+        "session_id": "ses_top",
+        "name": "Fix the bug",
+        "created_at": 1_700_000_000.0,
+        "updated_at": 1_700_000_500.0,
+    }]
+
+
+def test_opencode_missing_db_or_data_home_default_is_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    assert sessions_mod._opencode_sessions() == []
+    monkeypatch.delenv("XDG_DATA_HOME")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    _make_opencode_db(tmp_path / ".local" / "share" / "opencode" / "opencode.db", [
+        ("ses_home", None, "from HOME", 1_000, 2_000, None),
+    ])
+    assert [s["session_id"] for s in sessions_mod._opencode_sessions()] == ["ses_home"]
+    assert "opencode" in sessions_mod.AGENT_TYPES
+
+
+def test_build_command_supports_opencode(client):
+    resp = client.post("/build-command", json={
+        "type": "opencode", "resume_session_id": "ses_abc", "is_insecure": True,
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["command"] == "opencode --session ses_abc --auto"
+    assert body["insecure"] is True
+    assert body["session_id"] == "ses_abc"
+    fresh = client.post("/build-command", json={"type": "opencode"}).json()
+    assert fresh["command"] == "opencode"
+    assert clis_mod.extract_agent_session_id("opencode --session ses_abc --auto") == "ses_abc"
+    secure = clis_mod.set_command_insecure("opencode --session ses_abc --auto", "opencode", False)
+    assert secure == "opencode --session ses_abc"
