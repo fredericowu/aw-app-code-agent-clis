@@ -26,8 +26,9 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
 fi
 rm -f "$AW_BIN_DIR"/{claude,codex,copilot,opencode}
 
-# Keep OpenCode's config and session DB; remove only the installed binary.
-rm -f "$HOME/.opencode/bin/opencode"
+# OpenCode's vendor binary is isolated under the workspace's persistent home.
+# Authentication and sessions use the regular HOME/XDG trees and are retained.
+rm -rf "${AW_WORKSPACE_HOME:-$HOME/.aw-workspace}/opencode-cli"
 
 # cursor-agent — vendor installer, own $HOME sandbox dir under the
 # workspace's persistent home.

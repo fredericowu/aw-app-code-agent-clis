@@ -11,7 +11,10 @@
 set -euo pipefail
 
 AW_BIN_DIR="${AW_BIN_DIR:-/usr/local/bin}"
-OPENCODE_BIN="$HOME/.opencode/bin/opencode"
+AW_HOME="${AW_WORKSPACE_HOME:-$HOME/.aw-workspace}"
+OPENCODE_HOME="$AW_HOME/opencode-cli"
+OPENCODE_BIN="$OPENCODE_HOME/.opencode/bin/opencode"
+mkdir -p "$OPENCODE_HOME"
 
 link_binary() {
   if [ -w "$AW_BIN_DIR" ]; then
@@ -23,7 +26,7 @@ link_binary() {
 
 installed=""
 if [ -x "$OPENCODE_BIN" ]; then
-  installed="$("$OPENCODE_BIN" --version 2>/dev/null || true)"
+  installed="$(HOME="$OPENCODE_HOME" "$OPENCODE_BIN" --version 2>/dev/null || true)"
 fi
 # Registry lookup failure must not break a working install: fall back to
 # "whatever is installed is good enough".
@@ -35,7 +38,8 @@ if [ -n "$installed" ] && { [ -z "$latest" ] || [ "$installed" = "$latest" ]; };
   exit 0
 fi
 
-curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+curl -fsSL https://opencode.ai/install \
+  | HOME="$OPENCODE_HOME" bash -s -- --no-modify-path
 link_binary
 
-"$AW_BIN_DIR/opencode" --version
+HOME="$OPENCODE_HOME" "$AW_BIN_DIR/opencode" --version
