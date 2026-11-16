@@ -26,7 +26,7 @@ link_binary() {
 
 installed=""
 if [ -x "$OPENCODE_BIN" ]; then
-  installed="$("$OPENCODE_BIN" --version 2>/dev/null || true)"
+  installed="$(HOME="$OPENCODE_HOME" "$OPENCODE_BIN" --version 2>/dev/null || true)"
 fi
 # Registry lookup failure must not break a working install: fall back to
 # "whatever is installed is good enough".
